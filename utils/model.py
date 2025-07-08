@@ -1,11 +1,12 @@
+import logging
+
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torchvision import models
 from tqdm import tqdm
-from utils.dataset import get_loaders
-import logging
 
+from utils.dataset import get_loaders
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -38,8 +39,10 @@ def train_one_epoch(model: nn.Module,
         running_corrects += (preds == labels).sum().item()
         total_samples += inputs.size(0)
 
+    torch.cuda.empty_cache()
+
     epoch_loss = running_loss / total_samples
-    epoch_acc  = running_corrects / total_samples
+    epoch_acc = running_corrects / total_samples
     return epoch_loss, epoch_acc
 
 
@@ -48,8 +51,7 @@ def validate_one_epoch(model: nn.Module,
                        criterion: nn.Module,
                        device: torch.device) -> tuple[float, float]:
     """
-    Выполняет один цикл валидации по всем батчам.
-    Возвращает средний loss и accuracy за валидацию.
+    Один проход валидации: усредненный loss и accuracy.
     """
     model.eval()
     running_loss = 0.0
@@ -63,12 +65,16 @@ def validate_one_epoch(model: nn.Module,
             loss = criterion(outputs, labels)
 
             _, preds = torch.max(outputs, 1)
+
             running_loss += loss.item() * inputs.size(0)
             running_corrects += (preds == labels).sum().item()
             total_samples += inputs.size(0)
 
     epoch_loss = running_loss / total_samples
-    epoch_acc  = running_corrects / total_samples
+    epoch_acc = running_corrects / total_samples
+
+    logger.info(f"[Valid] epoch_loss: {epoch_loss:.4f}  epoch_acc: {epoch_acc:.4f}")
+
     return epoch_loss, epoch_acc
 
 
@@ -80,26 +86,46 @@ def save_checkpoint(state: dict, filename: str) -> None:
     logger.info(f"Checkpoint saved to {filename}")
 
 
-def start_training(device: torch.device,
-                   epochs: int = 2,
-                   batch_size: int = 32,
-                   num_classes: int = 50,
-                   save_path: str = 'best_resnet50.pth') -> None:
+def start_training(
+        model: nn.Module,
+        device: torch.device,
+        train_path: str,
+        test_path: str,
+        epochs: int = 2,
+        batch_size: int = 32,
+        num_classes: int = 50,
+        save_path: str = 'best.pth'
+) -> None:
     """
     Основной цикл дообучения модели с разделением на train/val,
     использованием выделенных функций и сохранением лучшей модели.
     """
     train_loader, val_loader = get_loaders(
-        train_dir='data/train',
-        test_dir='data/val',
+        train_dir=train_path,
+        test_dir=test_path,
         batch_size=batch_size
     )
 
-    model = models.resnet50(pretrained=True)
-    model.fc = nn.Linear(model.fc.in_features, num_classes)
+    if hasattr(model, 'fc'):
+        model.fc = nn.Linear(model.fc.in_features, num_classes)
+    else:
+        model.classifier = nn.Linear(model.classifier.in_features, num_classes)
+
     model = model.to(device)
 
-    criterion = nn.CrossEntropyLoss()
+    try:
+        all_labels = []
+        for _, labels in train_loader:
+            all_labels.extend(labels.cpu().numpy())
+
+        class_counts = np.bincount(all_labels, minlength=num_classes)
+        class_weights = 1. / (class_counts + 1e-8)
+        class_weights = torch.tensor(class_weights, dtype=torch.float).to(device)
+    except:
+        logger.warning("Не удалось рассчитать веса классов, используем стандартные веса")
+        class_weights = None
+
+    criterion = nn.CrossEntropyLoss(weight=class_weights) if class_weights is not None else nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
 
     best_val_acc = 0.0
@@ -114,7 +140,7 @@ def start_training(device: torch.device,
         val_loss, val_acc = validate_one_epoch(
             model, val_loader, criterion, device
         )
-        logger.info(f"[Valid] Loss: {val_loss:.4f} Acc: {val_acc:.4f}")
+        logger.info(f"[Test] Loss: {val_loss:.4f} Acc: {val_acc:.4f}")
 
         if val_acc > best_val_acc:
             best_val_acc = val_acc
