@@ -1,19 +1,21 @@
 from pathlib import Path
 from PIL import Image
-from utils.visualization_utils import dataset_count_visualization, dataset__size_visualization
+from utils.visualization_utils import dataset_count_visualization, dataset__size_visualization, dataset_count_statistics_to_csv
 import shutil
 
 
 def analyze_dataset(
         data_dir: str = 'data/images/images',
         count_save_path: str = 'plots/dataset_count_analysis.png',
-        size_save_path: str = 'plots/dataset_size_analysis.png'
+        size_save_path: str = 'plots/dataset_size_analysis.png',
+        csv_path: str = 'plots/dataset_count_statistics.csv'
 ):
     """
     Строит графики распределения количества и размеров изображений
     :param data_dir: Директория с изображениями
     :param count_save_path: Путь для сохранения графика количества изображений по классам
     :param size_save_path: Путь для сохранения графика размеров изображений
+    :param csv_path: Путь для сохранения статистики в формате csv
     :return: None
     """
 
@@ -35,7 +37,7 @@ def analyze_dataset(
             except Exception as e:
                 print(f"Ошибка при обработке {img_path}: {e}")
 
-
+    dataset_count_statistics_to_csv(image_info, csv_path)
     dataset_count_visualization(image_info, path=count_save_path)
     dataset__size_visualization(image_info, path=size_save_path)
 

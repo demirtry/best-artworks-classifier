@@ -20,6 +20,22 @@ def dataset_count_visualization(results: list[dict], path: str):
     plt.close()
 
 
+def dataset_count_statistics_to_csv(results: list[dict], path: str):
+    df = pd.DataFrame(results)
+
+    class_counts = df['class'].value_counts()
+
+    stats = {
+        'min': [class_counts.min()],
+        'max': [class_counts.max()],
+        'mean': [class_counts.mean()],
+        'total': [class_counts.sum()]
+    }
+
+    stats_df = pd.DataFrame(stats)
+    stats_df.to_csv(path, index=False)
+
+
 def dataset__size_visualization(results: list[dict], path: str):
     df = pd.DataFrame(results)
     plt.figure(figsize=(10, 4))
