@@ -1,12 +1,12 @@
 import logging
 
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from tqdm import tqdm
 
-from utils.dataset import get_loaders
+from utils.dataset import get_loaders, calculate_class_weights
+from utils.visualization_utils import plot_training_history
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -73,8 +73,6 @@ def validate_one_epoch(model: nn.Module,
     epoch_loss = running_loss / total_samples
     epoch_acc = running_corrects / total_samples
 
-    logger.info(f"[Valid] epoch_loss: {epoch_loss:.4f}  epoch_acc: {epoch_acc:.4f}")
-
     return epoch_loss, epoch_acc
 
 
@@ -113,34 +111,31 @@ def start_training(
 
     model = model.to(device)
 
-    try:
-        all_labels = []
-        for _, labels in train_loader:
-            all_labels.extend(labels.cpu().numpy())
-
-        class_counts = np.bincount(all_labels, minlength=num_classes)
-        class_weights = 1. / (class_counts + 1e-8)
-        class_weights = torch.tensor(class_weights, dtype=torch.float).to(device)
-    except:
-        logger.warning("Не удалось рассчитать веса классов, используем стандартные веса")
-        class_weights = None
-
+    class_weights = calculate_class_weights(train_path, device=device)
     criterion = nn.CrossEntropyLoss(weight=class_weights) if class_weights is not None else nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
 
     best_val_acc = 0.0
+    train_losses, val_losses = [], []
+    train_accs, val_accs = [], []
 
+    logger.info(f"start training")
     for epoch in range(1, epochs + 1):
         logger.info(f"Epoch {epoch}/{epochs}")
         train_loss, train_acc = train_one_epoch(
             model, train_loader, criterion, optimizer, device
         )
-        logger.info(f"[Train] Loss: {train_loss:.4f} Acc: {train_acc:.4f}")
+        logger.info(f"train_Loss: {train_loss:.4f} train_Acc: {train_acc:.4f}")
 
         val_loss, val_acc = validate_one_epoch(
             model, val_loader, criterion, device
         )
-        logger.info(f"[Test] Loss: {val_loss:.4f} Acc: {val_acc:.4f}")
+        logger.info(f"test_Loss: {val_loss:.4f} test_Acc: {val_acc:.4f}")
+
+        train_losses.append(train_loss)
+        val_losses.append(val_loss)
+        train_accs.append(train_acc)
+        val_accs.append(val_acc)
 
         if val_acc > best_val_acc:
             best_val_acc = val_acc
@@ -153,3 +148,12 @@ def start_training(
             save_checkpoint(checkpoint, save_path)
 
     logger.info(f"Best validation accuracy: {best_val_acc:.4f}")
+
+    plot_training_history(
+        epochs=epochs,
+        train_losses=train_losses,
+        val_losses=val_losses,
+        train_accuracies=train_accs,
+        val_accuracies=val_accs,
+        path='plots/training_history.png'
+    )
