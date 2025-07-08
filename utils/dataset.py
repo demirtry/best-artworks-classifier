@@ -139,3 +139,17 @@ def split_dataset(
             shutil.copy2(f, cls_test)
 
     print("Данные успешно разделены на train и test.")
+
+
+def calculate_class_weights(dir_path: str, device: torch.device):
+
+    class_counts = []
+    for cls in sorted(os.listdir(dir_path)):
+        cls_dir = os.path.join(dir_path, cls)
+        n = len(os.listdir(cls_dir))
+        class_counts.append(n)
+
+    class_counts = torch.tensor(class_counts, dtype=torch.float, device=device)
+    class_weights = 1.0 / (class_counts + 1e-8)
+
+    return class_weights
