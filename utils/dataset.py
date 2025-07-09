@@ -5,79 +5,93 @@ import shutil
 from pathlib import Path
 
 import torch
-from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms, datasets
 from tqdm import tqdm
 
 
-class CustomImageDataset(Dataset):
-    """Кастомный датасет для работы с папками классов"""
-
-    def __init__(self, root_dir, transform=None, target_size=(224, 224)):
+class ClassConditionalDataset(Dataset):
+    def __init__(self,
+                 root: str,
+                 base_transform,
+                 augment_transform,
+                 classes_to_augment: set[int]):
         """
-        :param root_dir: корневая директория
-        :param transform: трансформация
-        :param target_size: нужный размер изображений
+        :param root: Путь к корню ImageFolder
+        :param base_transform: Трансформации, общие для всех экземпляров
+        :param augment_transform: Дополнительно применимые трансформации для выбранных классов
+        :param classes_to_augment: Список именклассов, к которым нужно добавлять augment_transform
         """
-        self.root_dir = root_dir
-        self.transform = transform
-        self.target_size = target_size
 
-        self.classes = sorted([d for d in os.listdir(root_dir)
-                               if os.path.isdir(os.path.join(root_dir, d))])
-        self.class_to_idx = {cls_name: idx for idx, cls_name in enumerate(self.classes)}
-
-        self.images = []
-        self.labels = []
-
-        for class_name in self.classes:
-            class_dir = os.path.join(root_dir, class_name)
-            class_idx = self.class_to_idx[class_name]
-
-            for img_name in os.listdir(class_dir):
-                if img_name.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff')):
-                    img_path = os.path.join(class_dir, img_name)
-                    self.images.append(img_path)
-                    self.labels.append(class_idx)
+        self.folder = datasets.ImageFolder(root, transform=None)
+        self.base_tf = base_transform
+        self.aug_tf  = augment_transform
+        self.aug_cls = classes_to_augment
 
     def __len__(self):
-        return len(self.images)
+        return len(self.folder)
 
     def __getitem__(self, idx):
-        img_path = self.images[idx]
-        label = self.labels[idx]
-        image = Image.open(img_path).convert('RGB')
-        image = image.resize(self.target_size, Image.Resampling.LANCZOS)
-        if self.transform:
-            image = self.transform(image)
+        path, label = self.folder.samples[idx]
+        img = self.folder.loader(path)
 
-        return image, label
+        img = self.base_tf(img)
+        if label in self.aug_cls:
+            img = self.aug_tf(img)
 
-    def get_class_names(self):
-        """Возвращает список имен классов"""
-        return self.classes
+        return img, label
 
-
-def get_loaders(train_dir: str, test_dir: str, pic_size=(512, 512), batch_size=64, num_workers=4):
-    transform = transforms.Compose([
+def get_loaders(
+        train_dir: str,
+        test_dir: str,
+        pic_size=(512,512),
+        batch_size=64,
+        num_workers=4,
+        classes_to_augment=None
+):
+    base_tf = transforms.Compose([
         transforms.Resize(pic_size),
         transforms.ToTensor(),
-        transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))
+        transforms.Normalize(mean=(0.485,0.456,0.406),
+                             std=(0.229,0.224,0.225)),
+    ])
+    aug_tf = transforms.Compose([
+        transforms.RandomHorizontalFlip(p=0.5),
+        transforms.RandomRotation(15),
+        transforms.ColorJitter(0.2,0.2,0.2,0.1),
     ])
 
-    logging.info('Initializing datasets')
-    train_dataset = datasets.ImageFolder(root=train_dir, transform=transform)
-    logging.info('Train initialized')
-    test_dataset = datasets.ImageFolder(root=test_dir, transform=transform)
-    logging.info('Test initialized')
+    if classes_to_augment is None:
+        classes_to_augment = set()
+    else:
+        classes_to_augment = set(classes_to_augment)
+
+    train_ds = ClassConditionalDataset(
+        root=train_dir,
+        base_transform=base_tf,
+        augment_transform=aug_tf,
+        classes_to_augment=classes_to_augment
+    )
+    test_ds  = datasets.ImageFolder(
+        root=test_dir,
+        transform=transforms.Compose([
+            transforms.Resize(pic_size),
+            transforms.CenterCrop(pic_size),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=(0.485,0.456,0.406),
+                                 std=(0.229,0.224,0.225))
+        ])
+    )
 
     logging.info('Initializing dataloaders')
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+    train_loader = DataLoader(train_ds, batch_size=batch_size,
+                              shuffle=True, num_workers=num_workers,
+                              pin_memory=True)
     logging.info('Train dataloader initialized')
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+    test_loader  = DataLoader(test_ds,  batch_size=batch_size,
+                              shuffle=False, num_workers=num_workers,
+                              pin_memory=True)
     logging.info('Test dataloader initialized')
-
     return train_loader, test_loader
 
 
