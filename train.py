@@ -9,8 +9,9 @@ if __name__ == '__main__':
     # model_res_net_50 = resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
     model_res_net_18 = resnet18(weights=ResNet18_Weights.IMAGENET1K_V1)
     start_training(
-        base_model=model_res_net_18,
+        model=model_res_net_18,
         device=device,
+        pic_size=(512, 512),
         batch_size=50,
         train_path='data/data/train',
         test_path='data/data/test',
