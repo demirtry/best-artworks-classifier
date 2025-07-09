@@ -12,8 +12,10 @@ if __name__ == '__main__':
         model=model_res_net_18,
         device=device,
         pic_size=(512, 512),
-        batch_size=50,
+        batch_size=16,
         train_path='data/data/train',
         test_path='data/data/test',
-        save_path='models/best_resnet18.pth'
+        save_path='models/best_resnet18.pth',
+        epochs=2,
+        augmentation=True
     )
