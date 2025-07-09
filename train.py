@@ -6,7 +6,7 @@ from utils.model import start_training
 
 if __name__ == '__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    # model_res_net_50 = resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
+    # model_res_net_50 = resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)
     model_res_net_18 = resnet18(weights=ResNet18_Weights.IMAGENET1K_V1)
     start_training(
         model=model_res_net_18,

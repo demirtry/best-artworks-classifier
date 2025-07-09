@@ -103,11 +103,8 @@ def start_training(
     MINORITY_CLASSES = []
     if augmentation:
         MINORITY_CLASSES = [
-            "Andrei_Rublev", "Camille_Pissarro", "Caravaggio", "Claude_Monet", "Diego_Rivera",
-            "Diego_Velazquez", "Edouard_Manet", "Edvard_Munch", "El_Greco", "Eugene_Delacroix",
-            "Frida_Kahlo", "Georges_Seurat", "Giotto_di_Bondone", "Gustav_Klimt", "Gustave_Courbet",
-            "Henri_Matisse", "Henri_Rousseau", "Jackson_Pollock", "Jan_van_Eyck", "Michelangelo",
-            "Paul_Cezanne", "Piet_Mondrian", "Vasiliy_Kandinskiy", "William_Turner"
+            3, 5, 6, 7, 8, 9, 11, 12, 13, 14, 16, 17, 18, 19, 20, 22, 23, 24, 25,
+            26, 27, 28, 29, 31, 32, 34, 37, 39, 40, 41, 44, 47, 49
         ]
 
     train_loader, val_loader = get_loaders(
