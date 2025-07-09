@@ -93,17 +93,29 @@ def start_training(
         epochs: int = 2,
         batch_size: int = 32,
         num_classes: int = 50,
+        augmentation: bool = True,
         save_path: str = 'best.pth'
 ) -> None:
     """
     Основной цикл дообучения модели с разделением на train/val,
     использованием выделенных функций и сохранением лучшей модели.
     """
+    MINORITY_CLASSES = []
+    if augmentation:
+        MINORITY_CLASSES = [
+            "Andrei_Rublev", "Camille_Pissarro", "Caravaggio", "Claude_Monet", "Diego_Rivera",
+            "Diego_Velazquez", "Edouard_Manet", "Edvard_Munch", "El_Greco", "Eugene_Delacroix",
+            "Frida_Kahlo", "Georges_Seurat", "Giotto_di_Bondone", "Gustav_Klimt", "Gustave_Courbet",
+            "Henri_Matisse", "Henri_Rousseau", "Jackson_Pollock", "Jan_van_Eyck", "Michelangelo",
+            "Paul_Cezanne", "Piet_Mondrian", "Vasiliy_Kandinskiy", "William_Turner"
+        ]
+
     train_loader, val_loader = get_loaders(
         train_dir=train_path,
         test_dir=test_path,
         batch_size=batch_size,
-        pic_size=pic_size
+        pic_size=pic_size,
+        classes_to_augment=MINORITY_CLASSES,
     )
 
     if hasattr(model, 'fc'):
