@@ -14,15 +14,26 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def find_similar_artworks(artist_name, threshold_low=0.9, threshold_up=1., max_images_per_group=10):
+def find_similar_artworks(
+        artist_name: str,
+        threshold_low: float = 0.9,
+        threshold_up: float = 1.,
+        max_images_per_group: int = 10
+) -> None:
     """
-    Находит и визуализирует группы похожих изображений для заданного художника
+    Finds and visualizes groups of similar images for a given artist using ResNet50 features.
 
-    Параметры:
-    artist_name (str): Имя папки художника
-    threshold (float): Порог косинусной схожести (0.0-1.0)
-    max_images_per_group (int): Макс. изображений в одной визуализации
-    max_groups_to_show (int): Макс. количество групп для отображения
+    The function:
+    - Loads all images from the specified artist's folder.
+    - Computes feature embeddings using a pretrained ResNet50 (global average pooling layer output).
+    - Computes cosine similarity between all images.
+    - Groups images whose cosine similarity falls within the specified thresholds.
+    - Displays groups of similar images in a matplotlib figure.
+    :param artist_name: (str) The name of the artist (folder under data_root).
+    :param threshold_low: (float) Lower bound of cosine similarity to consider images similar.
+    :param threshold_up: (float) Upper bound of cosine similarity to consider images similar.
+    :param max_images_per_group: (int) Maximum number of images to display per group.
+    :return: None
     """
     data_root = "data/images/images"
     artist_path = os.path.join(data_root, artist_name)
@@ -154,5 +165,5 @@ def find_similar_artworks(artist_name, threshold_low=0.9, threshold_up=1., max_i
 
 if __name__ == '__main__':
     vincent = 'Vincent_van_Gogh'
-    degah = 'Edgar_Degas'
+    degas = 'Edgar_Degas'
     find_similar_artworks(vincent, threshold_low=0.85, threshold_up=1., max_images_per_group=100)

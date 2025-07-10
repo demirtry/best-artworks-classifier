@@ -1,9 +1,11 @@
 import csv
 import logging
+from typing import Dict, Tuple
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from utils.dataset import get_loaders, calculate_class_weights
@@ -14,20 +16,25 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def train_one_epoch(model: nn.Module,
-                    data_loader: torch.utils.data.DataLoader,
-                    criterion: nn.Module,
-                    optimizer: optim.Optimizer,
-                    device: torch.device,
-                    use_combined_loss: bool = False,
-                    alpha: float = 0.7) -> tuple[float, float, float]:
+def train_one_epoch(
+        model: nn.Module,
+        data_loader: DataLoader,
+        criterion: nn.Module,
+        optimizer: optim.Optimizer,
+        device: torch.device,
+        use_combined_loss: bool = False,
+        alpha: float = 0.7
+) -> Tuple[float, float, float]:
     """
-    Выполняет один цикл обучения по всем батчам.
-    Возвращает средний loss и accuracy за эпоху.
-
-    Параметры:
-        use_combined_loss: если True, использует комбинацию CE и F1 loss
-        alpha: вес для CE loss (1-alpha - вес для F1 loss)
+    Trains the model for one epoch.
+    :param model: Model to train
+    :param data_loader: Training data loader
+    :param criterion: Main loss function
+    :param optimizer: Optimizer for model parameters
+    :param device: Device to use for training (cuda or cpu)
+    :param use_combined_loss: Whether to combine main loss with CrossEntropy loss
+    :param alpha: Weight for CrossEntropy loss when using combined loss
+    :return: Tuple of (average loss, accuracy, confidence) for the epoch
     """
     model.train()
     running_loss = 0.0
@@ -75,18 +82,23 @@ def train_one_epoch(model: nn.Module,
     return epoch_loss, epoch_acc, epoch_confidence
 
 
-def validate_one_epoch(model: nn.Module,
-                       data_loader: torch.utils.data.DataLoader,
-                       criterion: nn.Module,
-                       device: torch.device,
-                       use_combined_loss: bool = False,
-                       alpha: float = 0.7) -> tuple[float, float, float]:
+def validate_one_epoch(
+        model: nn.Module,
+        data_loader: DataLoader,
+        criterion: nn.Module,
+        device: torch.device,
+        use_combined_loss: bool = False,
+        alpha: float = 0.7
+) -> Tuple[float, float, float]:
     """
-    Один проход валидации: усредненный loss, accuracy и confidence.
-
-    Параметры:
-        use_combined_loss: если True, использует комбинацию CE и F1 loss
-        alpha: вес для CE loss (1-alpha - вес для F1 loss)
+    Validates the model for one epoch.
+    :param model: Model to validate
+    :param data_loader: Validation data loader
+    :param criterion: Main loss function
+    :param device: Device to use for validation (cuda or cpu)
+    :param use_combined_loss: Whether to combine main loss with CrossEntropy loss
+    :param alpha: Weight for CrossEntropy loss when using combined loss
+    :return: Tuple of (average loss, accuracy, confidence) for the epoch
     """
     model.eval()
     running_loss = 0.0
@@ -129,9 +141,11 @@ def validate_one_epoch(model: nn.Module,
     return epoch_loss, epoch_acc, epoch_confidence
 
 
-def save_checkpoint(state: dict, filename: str) -> None:
+def save_checkpoint(state: Dict, filename: str) -> None:
     """
-    Сохраняет checkpoint модели на диск.
+    Saves a model checkpoint to disk.
+    :param state: Dictionary containing model and training state
+    :param filename: Path to save the checkpoint
     """
     torch.save(state, filename)
     logger.info(f"Checkpoint saved to {filename}")
@@ -142,7 +156,7 @@ def start_training(
         device: torch.device,
         train_path: str,
         test_path: str,
-        pic_size=(512, 512),
+        pic_size: Tuple[int, int] = (512, 512),
         epochs: int = 2,
         batch_size: int = 32,
         num_classes: int = 50,
@@ -150,8 +164,18 @@ def start_training(
         save_path: str = 'best.pth'
 ) -> None:
     """
-    Основной цикл дообучения модели с разделением на train/val,
-    использованием выделенных функций и сохранением лучшей модели.
+    Main training loop that trains and validates the model, saves checkpoints,
+    and logs metrics.
+    :param model: Model to train
+    :param device: Device to use for training (cuda or cpu)
+    :param train_path: Path to training dataset
+    :param test_path: Path to test dataset
+    :param pic_size: Image size for resizing
+    :param epochs: Number of training epochs
+    :param batch_size: Batch size for training and validation
+    :param num_classes: Number of output classes
+    :param augmentation: Whether to apply augmentation to minority classes
+    :param save_path: Path to save the best model checkpoint
     """
     minority_classes = []
     if augmentation:
@@ -246,13 +270,17 @@ def start_training(
     plot_confusion_matrix(y_true, y_pred, cm_path)
 
 
-def evaluate_model(model: torch.nn.Module, dataloader: DataLoader, device):
+def evaluate_model(
+        model: nn.Module,
+        dataloader: DataLoader,
+        device: torch.device
+) -> Tuple[torch.Tensor, torch.Tensor]:
     """
-    Оценивает модель: возвращает предсказания, исходные метки и время инференса
-    :param model: обученная модель
-    :param dataloader: даталоадер
-    :param device: девайс cuda или cpu
-    :return:
+    Evaluates the model on the given dataset.
+    :param model: Trained model to evaluate
+    :param dataloader: Data loader for evaluation
+    :param device: Device to use for evaluation
+    :return: Tuple of (predictions, true labels)
     """
     model.eval()
     all_preds = []

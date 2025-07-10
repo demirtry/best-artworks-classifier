@@ -1,8 +1,17 @@
+from typing import List, Dict
+
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 
 
-def dataset_count_visualization(results: list[dict], path: str):
+def dataset_count_visualization(results: List[Dict], path: str) -> None:
+    """
+    Plots a bar chart showing the number of images per class.
+    :param results: (List[Dict]) List of dictionaries, each containing at least a 'class' key.
+    :param path: (str) Path where the plot image will be saved.
+    :return: None
+    """
     df = pd.DataFrame(results)
     class_counts = df['class'].value_counts().sort_index()
 
@@ -20,7 +29,19 @@ def dataset_count_visualization(results: list[dict], path: str):
     plt.close()
 
 
-def dataset_count_statistics_to_csv(results: list[dict], path: str):
+def dataset_count_statistics_to_csv(results: List[Dict], path: str) -> None:
+    """
+    Computes class distribution statistics and saves them to a CSV file.
+
+    The statistics include:
+    - min count
+    - max count
+    - mean count
+    - total count
+    :param results: (List[Dict]) List of dictionaries, each containing at least a 'class' key.
+    :param path: (str) Path where the CSV will be saved.
+    :return: None
+    """
     df = pd.DataFrame(results)
 
     class_counts = df['class'].value_counts()
@@ -36,7 +57,15 @@ def dataset_count_statistics_to_csv(results: list[dict], path: str):
     stats_df.to_csv(path, index=False)
 
 
-def dataset_size_visualization(results: list[dict], path: str):
+def dataset_size_visualization(results: List[Dict], path: str) -> None:
+    """
+    Plots a histogram showing the distribution of image areas.
+
+    Assumes a key 'area' exists in each result dictionary.
+    :param results: (List[Dict]) List of dictionaries, each containing at least an 'area' key.
+    :param path: (str) Path where the histogram image will be saved.
+    :return: None
+    """
     df = pd.DataFrame(results)
     plt.figure(figsize=(10, 4))
     plt.plot()
@@ -51,12 +80,22 @@ def dataset_size_visualization(results: list[dict], path: str):
 
 def plot_training_history(
         epochs: int,
-        train_losses: list[float],
-        val_losses: list[float],
-        train_accuracies: list[float],
-        val_accuracies: list[float],
+        train_losses: List[float],
+        val_losses: List[float],
+        train_accuracies: List[float],
+        val_accuracies: List[float],
         path: str
-):
+) -> None:
+    """
+    Plots training and validation loss and accuracy curves.
+    :param epochs: (int) Total number of training epochs.
+    :param train_losses: (List[float]) Training loss values per epoch.
+    :param val_losses: (List[float]) Validation loss values per epoch.
+    :param train_accuracies: (List[float]) Training accuracy values per epoch.
+    :param val_accuracies: (List[float]) Validation accuracy values per epoch.
+    :param path: (str) Path where the plot image will be saved.
+    :return: None
+    """
     epochs = range(1, epochs + 1)
 
     plt.figure(figsize=(12, 5))
@@ -81,7 +120,22 @@ def plot_training_history(
     plt.close()
 
 
-def plot_training_curves_csv(csv_path, save_path):
+def plot_training_curves_csv(csv_path: str, save_path: str) -> None:
+    """
+    Plots training curves from a CSV file containing per-epoch metrics.
+
+    Expects columns:
+        - 'epoch'
+        - 'train_loss'
+        - 'val_loss'
+        - 'train_acc'
+        - 'val_acc'
+        - 'train_conf'
+        - 'val_conf'
+    :param csv_path: (str) Path to the CSV file with training metrics.
+    :param save_path: (str) Path where the plot image will be saved.
+    :return: None
+    """
     metrics = pd.read_csv(csv_path)
 
     plt.figure(figsize=(12, 5))
@@ -116,14 +170,22 @@ def plot_training_curves_csv(csv_path, save_path):
     plt.savefig(save_path)
 
 
-def plot_confusion_matrix(y_true, y_pred, path, title: str = 'Confusion matrix'):
+def plot_confusion_matrix(
+        y_true: List[int],
+        y_pred: List[int],
+        path: str,
+        title: str = 'Confusion matrix'
+) -> None:
     """
-    Строит матрицу ошибок, нормализованную по столбцам (каждый столбец суммируется в 100%).
-    Для столбцов без предсказаний выводит 0.0% вместо прочерка.
-    """
-    import numpy as np
-    import matplotlib.pyplot as plt
+    Plots a confusion matrix normalized by columns, so that each column sums to 100%.
 
+    For columns with zero predictions, displays 0.0% instead of empty values.
+    :param y_true: (List[int]) True class labels.
+    :param y_pred: (List[int]) Predicted class labels.
+    :param path: (str) Path where the confusion matrix plot will be saved.
+    :param title: (str, optional) Title of the plot. Defaults to 'Confusion matrix'.
+    :return: None
+    """
     classes_names = [str(i) for i in range(50)]
     num_classes = len(classes_names)
     cm = np.zeros((num_classes, num_classes), dtype=np.int64)

@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from torchvision.models import resnet18
 
 from utils.dataset import get_loaders
-from utils.tests import run_test
+from utils.model_tests import run_test
 
 
 # ort.preload_dlls(cuda=True, cudnn=True, msvc=True, directory=None)

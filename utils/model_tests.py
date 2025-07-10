@@ -1,16 +1,22 @@
 import time
-from typing import Callable, Tuple, Dict, Any
+from typing import Callable, Tuple, Dict, Any, Optional
 
 import numpy as np
+import psutil
 import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-NUM_WARMUP_ITERATIONS = 100
+NUM_WARMUP_ITERATIONS: int = 100
 
 
-def cuda_timer(func):
-    def wrapper(*args, **kwargs):
+def cuda_timer(func: Callable) -> Callable:
+    """
+    Decorator for measuring the execution time of a function on the GPU.
+    :param func: Function to measure time
+    :return: Wrapped function returning (result, time in ms)
+    """
+    def wrapper(*args, **kwargs) -> Tuple[Any, float]:
         start_time = torch.cuda.Event(enable_timing=True)
         end_time = torch.cuda.Event(enable_timing=True)
         start_time.record(stream=torch.cuda.current_stream())
@@ -21,8 +27,13 @@ def cuda_timer(func):
     return wrapper
 
 
-def cpu_timer(func):
-    def wrapper(*args, **kwargs):
+def cpu_timer(func: Callable) -> Callable:
+    """
+    Decorator for measuring the execution time of a function on the CPU.
+    :param func: Function to measure time
+    :return: Wrapped function returning (result, time in ms)
+    """
+    def wrapper(*args, **kwargs) -> Tuple[Any, float]:
         start_time = time.time()
         result = func(*args, **kwargs)
         end_time = time.time() - start_time
@@ -30,8 +41,13 @@ def cpu_timer(func):
     return wrapper
 
 
-def gpu_mem_usage(func):
-    def wrapper(*args, **kwargs):
+def gpu_mem_usage(func: Callable) -> Callable:
+    """
+    Decorator for measuring GPU memory consumption of a function.
+    :param func: Function for measuring memory
+    :return: Wrapped function returning (result, memory in MB)
+    """
+    def wrapper(*args, **kwargs) -> Tuple[Any, float]:
         torch.cuda.reset_peak_memory_stats()
         torch.cuda.empty_cache()
         allocated_memory = torch.cuda.max_memory_allocated()
@@ -40,8 +56,13 @@ def gpu_mem_usage(func):
     return wrapper
 
 
-def cpu_mem_usage(func):
-    def wrapper(*args, **kwargs):
+def cpu_mem_usage(func: Callable) -> Callable:
+    """
+    Decorator for measuring CPU memory consumption of a function.
+    :param func: Function for measuring memory
+    :return: Wrapped function returning (result, memory in MB)
+    """
+    def wrapper(*args, **kwargs) -> Tuple[Any, float]:
         allocated_memory = psutil.Process().memory_info().rss
         result = func(*args, **kwargs)
         return result, (psutil.Process().memory_info().rss - allocated_memory) / 2 ** 20
@@ -49,16 +70,29 @@ def cpu_mem_usage(func):
 
 
 def run_test(
-    model_wrapper: Callable,
-    data_preprocess: Callable = None,
+    model_wrapper: Callable[[torch.Tensor], Any],
+    data_preprocess: Optional[Callable[[torch.Tensor], torch.Tensor]] = None,
     input_shape: Tuple[int, int, int] = (3, 512, 512),
     num_runs: int = 1000,
     min_batch_size: int = 1,
     max_batch_size: int = 1,
     batch_step: int = 1,
-    dataloader: DataLoader = None,
+    dataloader: Optional[DataLoader] = None,
     timer_type: str = 'cuda'
 ) -> Dict[Tuple[int, Any], float]:
+    """
+    Runs a model performance test for different batch sizes.
+    :param model_wrapper: Model wrapper for making predictions
+    :param data_preprocess: Input data preprocessing function
+    :param input_shape: Input data dimensions (channels, height, width)
+    :param num_runs: Number of runs for each batch size
+    :param min_batch_size: Minimum batch size for testing
+    :param max_batch_size: Maximum batch size for testing
+    :param batch_step: Step to increase batch size
+    :param dataloader: Dataloader for real data (if used)
+    :param timer_type: Timer type ('cuda' for GPU, otherwise CPU)
+    :return: Dictionary with results: {(batch_size, c, h, w): average_time}
+    """
     shapes = [(size, *input_shape) for size in range(min_batch_size, max_batch_size + 1, batch_step)]
     results = {}
     timer = cuda_timer if timer_type == 'cuda' else cpu_timer

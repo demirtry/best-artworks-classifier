@@ -3,6 +3,7 @@ import os
 import random
 import shutil
 from pathlib import Path
+from typing import Set, Tuple, List, Callable, Optional
 
 import torch
 from torch.utils.data import DataLoader, Dataset
@@ -11,26 +12,30 @@ from tqdm import tqdm
 
 
 class ClassConditionalDataset(Dataset):
-    def __init__(self,
-                 root: str,
-                 base_transform,
-                 augment_transform,
-                 classes_to_augment: set[int]):
-        """
-        :param root: Путь к корню ImageFolder
-        :param base_transform: Трансформации, общие для всех экземпляров
-        :param augment_transform: Дополнительно применимые трансформации для выбранных классов
-        :param classes_to_augment: Список именклассов, к которым нужно добавлять augment_transform
-        """
+    """
+    Dataset class with folder-based structure where each folder represents a separate class.
+    Applies augmentation transformations only to specified classes.
+    :param root: Path to root directory of ImageFolder-style dataset
+    :param base_transform: Base transformations applied to all images
+    :param augment_transform: Additional augmentations applied only to specified classes
+    :param classes_to_augment: Set of class indices that should receive augmentation
+    """
+    def __init__(
+            self,
+            root: str,
+            base_transform: Callable,
+            augment_transform: Callable,
+            classes_to_augment: Set[int]
+    ) -> None:
         self.folder = datasets.ImageFolder(root, transform=None)
         self.base_tf = base_transform
         self.aug_tf = augment_transform
         self.aug_cls = classes_to_augment
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.folder)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, int]:
         path, label = self.folder.samples[idx]
         img = self.folder.loader(path)
 
@@ -44,11 +49,21 @@ class ClassConditionalDataset(Dataset):
 def get_loaders(
         train_dir: str,
         test_dir: str,
-        pic_size=(512,512),
-        batch_size=64,
-        num_workers=4,
-        classes_to_augment=None
-):
+        pic_size: Tuple[int, int] = (512, 512),
+        batch_size: int = 64,
+        num_workers: int = 4,
+        classes_to_augment: Optional[List[int]] = None
+) -> Tuple[DataLoader, DataLoader]:
+    """
+    Creates train and test data loaders with optional class-specific augmentations.
+    :param train_dir: Path to training dataset directory
+    :param test_dir: Path to test dataset directory
+    :param pic_size: Target image size (height, width)
+    :param batch_size: Batch size for both loaders
+    :param num_workers: Number of workers for data loading
+    :param classes_to_augment: List of class indices to apply augmentations to
+    :return: Tuple containing train DataLoader and test DataLoader
+    """
     base_tf = transforms.Compose([
         transforms.Resize(pic_size),
         transforms.ToTensor(),
@@ -76,8 +91,8 @@ def get_loaders(
             transforms.Resize(pic_size),
             transforms.CenterCrop(pic_size),
             transforms.ToTensor(),
-            transforms.Normalize(mean=(0.485,0.456,0.406),
-                                 std=(0.229,0.224,0.225))
+            transforms.Normalize(mean=(0.485, 0.456, 0.406),
+                                 std=(0.229, 0.224, 0.225))
         ])
     )
 
@@ -99,16 +114,14 @@ def split_dataset(
         test_dir: str,
         split_ratio: float = 0.8,
         seed: int = 42
-):
+) -> None:
     """
-    Разделяет датасет на train и test, сохраняя структуру классов.
-
-    Args:
-        source_dir (str): Путь к исходной директории с классами.
-        train_dir (str): Путь для сохранения train части.
-        test_dir (str): Путь для сохранения test части.
-        split_ratio (float): Доля данных для train (от 0 до 1).
-        seed (int): Сид для воспроизводимости случайного разделения.
+    Splits dataset into train and test sets while preserving class structure.
+    :param source_dir: Path to source directory with class folders
+    :param train_dir: Path to save training portion
+    :param test_dir: Path to save test portion
+    :param split_ratio: Ratio of data to use for training (0-1)
+    :param seed: Random seed for reproducibility
     """
     random.seed(seed)
 
@@ -126,7 +139,7 @@ def split_dataset(
 
     classes = [d.name for d in source_path.iterdir() if d.is_dir()]
 
-    print(f"Найдено классов: {len(classes)}")
+    print(f"айдено классовН: {len(classes)}")
     print(f"Разделение данных (train: {split_ratio * 100}%, test: {(1 - split_ratio) * 100}%)")
 
     for cls in tqdm(classes, desc="Обработка классов", total=len(classes)):
@@ -153,7 +166,13 @@ def split_dataset(
     print("Данные успешно разделены на train и test.")
 
 
-def calculate_class_weights(dir_path: str, device: torch.device):
+def calculate_class_weights(dir_path: str, device: torch.device) -> torch.Tensor:
+    """
+    Calculates class weights for imbalanced datasets.
+    :param dir_path: Path to dataset directory with class folders
+    :param device: Torch device to store the weights on
+    :return: Tensor of class weights
+    """
     class_counts = []
     for cls in sorted(os.listdir(dir_path)):
         cls_dir = os.path.join(dir_path, cls)

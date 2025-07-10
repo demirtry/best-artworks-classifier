@@ -11,3 +11,4 @@ onnxruntime
 onnxruntime-gpu
 onnxconverter-common
 Pillow
+psutil
