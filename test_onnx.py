@@ -1,16 +1,16 @@
-import torch
-import onnx
-import torch.nn as nn
-import onnxruntime as ort
-import numpy as np
 import os
-import time
-from typing import Tuple, Optional, Dict
+from typing import Tuple, Dict
+
+import onnx
 import onnxconverter_common
-from torch.utils.data import Dataset, DataLoader
-from utils.dataset import get_loaders
+import onnxruntime as ort
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader
 from torchvision.models import resnet18
-from utils.test import run_test
+
+from utils.dataset import get_loaders
+from utils.tests import run_test
 
 
 # ort.preload_dlls(cuda=True, cudnn=True, msvc=True, directory=None)

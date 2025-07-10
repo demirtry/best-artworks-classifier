@@ -1,7 +1,11 @@
-from pathlib import Path
-from PIL import Image
-from utils.visualization_utils import dataset_count_visualization, dataset__size_visualization, dataset_count_statistics_to_csv
 import shutil
+from pathlib import Path
+
+from PIL import Image
+
+from utils.visualization_utils import (dataset_count_visualization,
+                                       dataset_size_visualization,
+                                       dataset_count_statistics_to_csv)
 
 
 def analyze_dataset(
@@ -39,7 +43,7 @@ def analyze_dataset(
 
     dataset_count_statistics_to_csv(image_info, csv_path)
     dataset_count_visualization(image_info, path=count_save_path)
-    dataset__size_visualization(image_info, path=size_save_path)
+    dataset_size_visualization(image_info, path=size_save_path)
 
 
 def organize_by_class(source_dir: Path, target_base: Path):

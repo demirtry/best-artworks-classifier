@@ -1,9 +1,10 @@
-from typing import Callable, Tuple, Dict
-import torch
 import time
-from torch.utils.data import Dataset, DataLoader
-from tqdm import tqdm
+from typing import Callable, Tuple, Dict, Any
+
 import numpy as np
+import torch
+from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 NUM_WARMUP_ITERATIONS = 100
 
@@ -57,7 +58,7 @@ def run_test(
     batch_step: int = 1,
     dataloader: DataLoader = None,
     timer_type: str = 'cuda'
-) -> Dict[Tuple[int, int, int], float]:
+) -> Dict[Tuple[int, Any], float]:
     shapes = [(size, *input_shape) for size in range(min_batch_size, max_batch_size + 1, batch_step)]
     results = {}
     timer = cuda_timer if timer_type == 'cuda' else cpu_timer

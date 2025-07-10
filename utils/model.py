@@ -1,3 +1,4 @@
+import csv
 import logging
 
 import torch
@@ -6,7 +7,8 @@ import torch.optim as optim
 from tqdm import tqdm
 
 from utils.dataset import get_loaders, calculate_class_weights
-from utils.visualization_utils import plot_training_history
+from utils.visualization_utils import plot_confusion_matrix
+from utils.losses import SoftF1Loss
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -15,65 +17,116 @@ logger = logging.getLogger(__name__)
 def train_one_epoch(model: nn.Module,
                     data_loader: torch.utils.data.DataLoader,
                     criterion: nn.Module,
-                    optimizer: torch.optim.Optimizer,
-                    device: torch.device) -> tuple[float, float]:
+                    optimizer: optim.Optimizer,
+                    device: torch.device,
+                    use_combined_loss: bool = False,
+                    alpha: float = 0.7) -> tuple[float, float, float]:
     """
     Выполняет один цикл обучения по всем батчам.
     Возвращает средний loss и accuracy за эпоху.
+
+    Параметры:
+        use_combined_loss: если True, использует комбинацию CE и F1 loss
+        alpha: вес для CE loss (1-alpha - вес для F1 loss)
     """
     model.train()
     running_loss = 0.0
     running_corrects = 0
     total_samples = 0
+    total_confidence = 0.0
+    ce_loss_fn = nn.CrossEntropyLoss()
 
     for inputs, labels in tqdm(data_loader, desc="Training", leave=False):
         inputs, labels = inputs.to(device), labels.to(device)
         optimizer.zero_grad()
         outputs = model(inputs)
-        loss = criterion(outputs, labels)
+
+        if use_combined_loss:
+            main_loss = criterion(outputs, labels)
+
+            ce_loss = ce_loss_fn(outputs, labels)
+
+            loss = alpha * ce_loss + (1 - alpha) * main_loss
+        else:
+            loss = criterion(outputs, labels)
+
         loss.backward()
         optimizer.step()
 
+        probs = torch.softmax(outputs, dim=1)
+        confidence = probs.max(dim=1).values
+        batch_confidence = confidence.sum().item()
+
         _, preds = torch.max(outputs, 1)
+
         running_loss += loss.item() * inputs.size(0)
         running_corrects += (preds == labels).sum().item()
         total_samples += inputs.size(0)
+        total_confidence += batch_confidence
 
     torch.cuda.empty_cache()
 
     epoch_loss = running_loss / total_samples
     epoch_acc = running_corrects / total_samples
-    return epoch_loss, epoch_acc
+    epoch_confidence = total_confidence / total_samples
+
+    tqdm.write(f"train_Loss: {epoch_loss:.4f} train_Acc: {epoch_acc:.4f} train_Conf: {epoch_confidence:.4f}")
+
+    return epoch_loss, epoch_acc, epoch_confidence
 
 
 def validate_one_epoch(model: nn.Module,
                        data_loader: torch.utils.data.DataLoader,
                        criterion: nn.Module,
-                       device: torch.device) -> tuple[float, float]:
+                       device: torch.device,
+                       use_combined_loss: bool = False,
+                       alpha: float = 0.7) -> tuple[float, float, float]:
     """
-    Один проход валидации: усредненный loss и accuracy.
+    Один проход валидации: усредненный loss, accuracy и confidence.
+
+    Параметры:
+        use_combined_loss: если True, использует комбинацию CE и F1 loss
+        alpha: вес для CE loss (1-alpha - вес для F1 loss)
     """
     model.eval()
     running_loss = 0.0
     running_corrects = 0
     total_samples = 0
+    total_confidence = 0.0
+    ce_loss_fn = nn.CrossEntropyLoss()
 
     with torch.no_grad():
         for inputs, labels in tqdm(data_loader, desc="Validating", leave=False):
             inputs, labels = inputs.to(device), labels.to(device)
             outputs = model(inputs)
-            loss = criterion(outputs, labels)
+
+            if use_combined_loss:
+                main_loss = criterion(outputs, labels)
+
+                ce_loss = ce_loss_fn(outputs, labels)
+
+                loss = alpha * ce_loss + (1 - alpha) * main_loss
+            else:
+                loss = criterion(outputs, labels)
+
+            probs = torch.softmax(outputs, dim=1)
+            confidence = probs.max(dim=1).values
+            batch_confidence = confidence.sum().item()
 
             _, preds = torch.max(outputs, 1)
 
             running_loss += loss.item() * inputs.size(0)
             running_corrects += (preds == labels).sum().item()
             total_samples += inputs.size(0)
+            total_confidence += batch_confidence
 
     epoch_loss = running_loss / total_samples
     epoch_acc = running_corrects / total_samples
+    epoch_confidence = total_confidence / total_samples
 
-    return epoch_loss, epoch_acc
+    tqdm.write(f"test_Loss: {epoch_loss:.4f} test_Acc: {epoch_acc:.4f} test_Conf: {epoch_confidence:.4f}")
+
+    return epoch_loss, epoch_acc, epoch_confidence
 
 
 def save_checkpoint(state: dict, filename: str) -> None:
@@ -93,17 +146,26 @@ def start_training(
         epochs: int = 2,
         batch_size: int = 32,
         num_classes: int = 50,
+        augmentation: bool = True,
         save_path: str = 'best.pth'
 ) -> None:
     """
     Основной цикл дообучения модели с разделением на train/val,
     использованием выделенных функций и сохранением лучшей модели.
     """
+    minority_classes = []
+    if augmentation:
+        minority_classes = [
+            3, 5, 6, 7, 8, 9, 11, 12, 13, 14, 16, 17, 18, 19, 20, 22, 23, 24, 25,
+            26, 27, 28, 29, 31, 32, 34, 37, 39, 40, 41, 44, 47, 49
+        ]
+
     train_loader, val_loader = get_loaders(
         train_dir=train_path,
         test_dir=test_path,
         batch_size=batch_size,
-        pic_size=pic_size
+        pic_size=pic_size,
+        classes_to_augment=minority_classes,
     )
 
     if hasattr(model, 'fc'):
@@ -114,48 +176,93 @@ def start_training(
     model = model.to(device)
 
     class_weights = calculate_class_weights(train_path, device=device)
+    # criterion = SoftF1Loss(class_weights=class_weights)
     criterion = nn.CrossEntropyLoss(weight=class_weights) if class_weights is not None else nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
 
-    best_val_acc = 0.0
-    train_losses, val_losses = [], []
-    train_accs, val_accs = [], []
+    metrics_file = "training_metrics.csv"
+    best_metrics = {
+        'epoch': 0,
+        'train_loss': float('inf'),
+        'val_loss': float('inf'),
+        'train_acc': 0.0,
+        'val_acc': 0.0,
+        'train_conf': 0.0,
+        'val_conf': 0.0,
+        'best_model_path': save_path
+    }
 
-    logger.info(f"start training")
+    with open(metrics_file, mode='w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['epoch', 'train_loss', 'val_loss', 'train_acc', 'val_acc', 'train_conf', 'val_conf'])
+
     for epoch in range(1, epochs + 1):
-        logger.info(f"Epoch {epoch}/{epochs}")
-        train_loss, train_acc = train_one_epoch(
-            model, train_loader, criterion, optimizer, device
+        tqdm.write(f"Epoch {epoch}/{epochs}")
+        train_loss, train_acc, train_conf = train_one_epoch(
+            model, train_loader, criterion, optimizer, device, use_combined_loss=False
         )
-        logger.info(f"train_Loss: {train_loss:.4f} train_Acc: {train_acc:.4f}")
 
-        val_loss, val_acc = validate_one_epoch(
-            model, val_loader, criterion, device
+        val_loss, val_acc, val_conf = validate_one_epoch(
+            model, val_loader, criterion, device, use_combined_loss=False
         )
-        logger.info(f"test_Loss: {val_loss:.4f} test_Acc: {val_acc:.4f}")
 
-        train_losses.append(train_loss)
-        val_losses.append(val_loss)
-        train_accs.append(train_acc)
-        val_accs.append(val_acc)
+        with open(metrics_file, mode='a', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow([epoch, train_loss, val_loss, train_acc, val_acc, train_conf, val_conf])
 
-        if val_acc > best_val_acc:
-            best_val_acc = val_acc
+        if val_acc > best_metrics['val_acc']:
+            best_metrics.update({
+                'epoch': epoch,
+                'train_loss': train_loss,
+                'val_loss': val_loss,
+                'train_acc': train_acc,
+                'val_acc': val_acc,
+                'train_conf': train_conf,
+                'val_conf': val_conf
+            })
+
             checkpoint = {
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
-                'best_val_acc': best_val_acc,
+                'best_val_acc': val_acc,
+                'val_conf': val_conf
             }
             save_checkpoint(checkpoint, save_path)
 
-    logger.info(f"Best validation accuracy: {best_val_acc:.4f}")
+    best_metrics_file = "best_metrics.csv"
+    file_exists = os.path.isfile(best_metrics_file)
 
-    plot_training_history(
-        epochs=epochs,
-        train_losses=train_losses,
-        val_losses=val_losses,
-        train_accuracies=train_accs,
-        val_accuracies=val_accs,
-        path='plots/training_history.png'
-    )
+    with open(best_metrics_file, mode='a', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=best_metrics.keys())
+        if not file_exists:
+            writer.writeheader()
+        writer.writerow(best_metrics)
+
+    checkpoint = torch.load(save_path, map_location=device)
+    model.load_state_dict(checkpoint['model_state_dict'])
+    y_pred, y_true = evaluate_model(model, val_loader, device)
+    cm_path = f"/kaggle/working/confusion_matrix.png"
+    plot_confusion_matrix(y_true, y_pred, cm_path)
+
+
+def evaluate_model(model: torch.nn.Module, dataloader: DataLoader, device):
+    """
+    Оценивает модель: возвращает предсказания, исходные метки и время инференса
+    :param model: обученная модель
+    :param dataloader: даталоадер
+    :param device: девайс cuda или cpu
+    :return:
+    """
+    model.eval()
+    all_preds = []
+    all_targets = []
+
+    with torch.no_grad():
+        for x, y in dataloader:
+            x, y = x.to(device), y.to(device)
+            preds = model(x)
+            all_preds.append(preds.argmax(dim=1).cpu())
+            all_targets.append(y.cpu())
+
+    return torch.cat(all_preds), torch.cat(all_targets)

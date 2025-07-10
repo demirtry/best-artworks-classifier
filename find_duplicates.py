@@ -1,14 +1,14 @@
+import logging
 import os
+from collections import defaultdict
+
+import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import torchvision.models as models
 import torchvision.transforms as transforms
 from PIL import Image
 from torch.nn.functional import normalize
-import matplotlib.pyplot as plt
-from collections import defaultdict
-import logging
-
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -155,4 +155,4 @@ def find_similar_artworks(artist_name, threshold_low=0.9, threshold_up=1., max_i
 if __name__ == '__main__':
     vincent = 'Vincent_van_Gogh'
     degah = 'Edgar_Degas'
-    find_similar_artworks('Albrecht_Du╠Иrer', threshold_low=0.90, threshold_up=1., max_images_per_group=100)
+    find_similar_artworks(vincent, threshold_low=0.85, threshold_up=1., max_images_per_group=100)
