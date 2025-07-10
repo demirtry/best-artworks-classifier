@@ -1,5 +1,5 @@
 import os
-from typing import Tuple, Dict
+from typing import Tuple, Dict, Any
 
 import onnx
 import onnxconverter_common
@@ -110,7 +110,7 @@ def test_onnx_model_cpu_timer(
         batch_step: int = 1,
         dataloader: DataLoader = None,
         **kwargs
-) -> Dict[Tuple[int, int, int], float]:
+) -> Dict[Tuple[int, Any], float]:
     """
     Тестирует ONNX модель с использованием CPU таймера
 
@@ -160,7 +160,7 @@ def test_onnx_model_cuda_timer(
         batch_step: int = 1,
         dataloader: DataLoader = None,
         **kwargs
-) -> Dict[Tuple[int, int, int], float]:
+) -> Dict[Tuple[int, Any], float]:
     """
     Тестирует ONNX модель с использованием CUDA таймера
 
