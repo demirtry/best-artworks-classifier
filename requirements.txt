@@ -1,0 +1,14 @@
+--index-url https://download.pytorch.org/whl/cu118
+tqdm
+torch
+torchvision
+torchaudio
+numpy
+onnx
+matplotlib
+pandas
+onnxruntime
+onnxruntime-gpu
+onnxconverter-common
+Pillow
+psutil
