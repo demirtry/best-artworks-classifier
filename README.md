@@ -72,4 +72,6 @@
 
 Был реализован сервис для получения предсказаний модели.
 
-link: [best-artwork-classifier](https://best-artwork-classifier-website-91vq.onrender.com)
+link: [best-artwork-classifier-site](https://best-artwork-classifier-website-91vq.onrender.com)
+
+site repository: [click](https://github.com/cybertabyretka/best_artwork_classifier_website)
